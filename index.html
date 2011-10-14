@@ -5,11 +5,11 @@
 <!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
 <head>
   <meta charset="utf-8">
-  <title>My Octopress Blog</title>
-  <meta name="author" content="Your Name">
+  <title>Richard Shaw</title>
+  <meta name="author" content="Richard Shaw">
 
   
-  <meta name="description" content="                      Blog Archives                    Recent Posts          ">
+  <meta name="description" content="I&#8217;m a heavy user of Python for work, but on must clusters I&#8217;ve worked on theinstallation has had significant problems. Usually either t...">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -24,7 +24,7 @@
   <script src="/javascripts/modernizr-2.0.js"></script>
   <script src="/javascripts/ender.js"></script>
   <script src="/javascripts/octopress.js" type="text/javascript"></script>
-  <link href="/atom.xml" rel="alternate" title="My Octopress Blog" type="application/atom+xml">
+  <link href="/atom.xml" rel="alternate" title="Richard Shaw" type="application/atom+xml">
   <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
 <link href="http://fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
 <link href="http://fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
@@ -33,9 +33,9 @@
 
 <body   >
   <header role="banner"><hgroup>
-  <h1><a href="/">My Octopress Blog</a></h1>
+  <h1><a href="/">Richard Shaw</a></h1>
   
-    <h2>A blogging framework for hackers.</h2>
+    <h2>coding and cosmology</h2>
   
 </hgroup>
 
@@ -61,6 +61,230 @@
       <div class="blog-index">
   
   
+  
+    <article>
+      
+  <header>
+    
+      <h1 class="entry-title"><a href="/blog/2011/10/14/compiling-python-with-the-intel-compilers/">Compiling Python With the Intel Compilers</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+  
+
+
+
+<time datetime="2011-10-14T00:20:00-04:00" pubdate  data-updated="true" >Oct 14<span>th</span>, 2011</time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>I&#8217;m a heavy user of <a href="http://www.python.org/">Python</a> for work, but on must clusters I&#8217;ve worked on the
+installation has had significant problems. Usually either the builds of
+<a href="http://numpy.scipy.org/">numpy</a> and <a href="http://www.scipy.org/">scipy</a> aren&#8217;t built against any optimized numerical libraries
+(such as <a href="http://software.intel.com/en-us/articles/intel-mkl/">Intel MKL</a>), or they&#8217;ve been compiled with some mixed combination
+of compilers which makes building C extensions difficult (especially with <a href="http://www.cython.org/">Cython</a>).</p>
+
+<p>I&#8217;ve been struggling for a while to build a <a href="http://www.python.org/">Python</a> toolchain completely around
+the Intel compilers and math libraries, and I&#8217;ve just succeeded. It&#8217;s a little involved so I&#8217;ve attempted to document the process here.</p>
+
+<h2>Compiling Python</h2>
+
+<p>First, go and grab a copy of the Python source, and uncompress it. The
+unmodified source cannot be built by the Intel compilers, as the <code>_ctypes</code>
+library uses some gcc specific features. So before doing anything else, the file
+<code>Modules/_ctypes/libffi/src/x86/ffi64.c</code> needs to be patched. The relevant
+changes are below (taken from two Intel forum posts <a href="http://software.intel.com/en-us/articles/build-firefox-35-with-intel-c-compiler/">here</a> and <a href="http://origin-integration-software.intel.com/en-us/forums/showthread.php?t=56652&amp;amp;o=d&amp;amp;s=lr">here</a>).</p>
+
+<figure class='code'><figcaption><span>patch for ffi64.c  </span></figcaption>
+ <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+</pre></td><td class='code'><pre><code class='diff'><span class='line'><span class="gd">--- ffi64.old.c 2011-10-12 17:27:47.952517000 -0400</span>
+</span><span class='line'><span class="gi">+++ ffi64.c      2011-10-12 17:29:48.435726000 -0400</span>
+</span><span class='line'><span class="gu">@@ -36,6 +36,8 @@</span>
+</span><span class='line'> #define MAX_GPR_REGS 6
+</span><span class='line'> #define MAX_SSE_REGS 8
+</span><span class='line'>
+</span><span class='line'><span class="gi">+typedef struct { int64_t m[2]; } __int128_t;</span>
+</span><span class='line'><span class="gi">+</span>
+</span><span class='line'> struct register_args
+</span><span class='line'> {
+</span><span class='line'>   /* Registers for argument passing.  */
+</span><span class='line'><span class="gu">@@ -470,10 +472,14 @@</span>
+</span><span class='line'>        break;
+</span><span class='line'>      case X86_64_SSE_CLASS:
+</span><span class='line'>      case X86_64_SSEDF_CLASS:
+</span><span class='line'><span class="gd">-          reg_args-&amp;gt;sse[ssecount++] = *(UINT64 *) a;</span>
+</span><span class='line'><span class="gi">+          reg_args-&amp;gt;sse[ssecount].m[0] = *(UINT64 *) a;</span>
+</span><span class='line'><span class="gi">+          reg_args-&amp;gt;sse[ssecount++].m[1] = 0;</span>
+</span><span class='line'>        break;
+</span><span class='line'>      case X86_64_SSESF_CLASS:
+</span><span class='line'><span class="gd">-          reg_args-&amp;gt;sse[ssecount++] = *(UINT32 *) a;</span>
+</span><span class='line'><span class="gi">+          reg_args-&amp;gt;sse[ssecount].m[0] = *(UINT32 *) a;</span>
+</span><span class='line'><span class="gi">+          reg_args-&amp;gt;sse[ssecount++].m[1] = 0;</span>
+</span><span class='line'>        break;
+</span><span class='line'>          default:
+</span><span class='line'>        abort();
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Then with this done python can be compiled. To force it to compile against the
+Intel compilers instead of <em>GCC</em>, we need to set some environment variables, and
+then configure and build it.</p>
+
+<figure class='code'><figcaption><span>Set compilation environment  </span></figcaption>
+ <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='bash'><span class='line'><span class="nv">$ </span><span class="nb">export </span><span class="nv">CC</span><span class="o">=</span>icc
+</span><span class='line'><span class="nv">$ </span><span class="nb">export </span><span class="nv">CXX</span><span class="o">=</span>icpc
+</span><span class='line'><span class="nv">$ </span>./configure --without-gcc
+</span><span class='line'><span class="nv">$ </span>make
+</span><span class='line'><span class="nv">$ </span>make install
+</span></code></pre></td></tr></table></div></figure>
+
+
+<h2>Compiling Numpy and Scipy</h2>
+
+<p>Now to building <em>numpy</em> and <em>scipy</em>. There some detailed instructions posted
+<a href="http://blog.sun.tc/2010/11/numpy-and-scipy-with-intel-mkl-on-linux.html">here</a>, which were useful, though I think some parts are out of date. The
+main thing to do is to create a <code>site.cfg</code> file at the root of the numpy build
+directory setting all the MKL variables (in the following <code>$MKLROOT</code> must be
+explicitly expanded to the root of the MKL library, usually defined in the
+environment variable of the same name).</p>
+
+<figure class='code'><figcaption><span>site.cfg  </span></figcaption>
+ <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='ini'><span class='line'><span class="k">[mkl]</span>
+</span><span class='line'><span class="na">library_dirs</span> <span class="o">=</span> <span class="s">$MKLROOT/lib/intel64</span>
+</span><span class='line'><span class="na">include_dirs</span> <span class="o">=</span> <span class="s">$MKLROOT/include</span>
+</span><span class='line'><span class="na">mkl_libs</span> <span class="o">=</span> <span class="s">mkl_def,mkl_intel_lp64,mkl_intel_thread,mkl_core,mkl_mc</span>
+</span><span class='line'><span class="na">lapack_libs</span> <span class="o">=</span> <span class="s">mkl_lapack95_lp64</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Next we need to edit the Intel compiler setup in numpy&#8217;s distutils. Edit
+<code>numpy/distutils/intelccompiler.py</code> and change all definitions of <code>cc_exe</code> to be
+<code>cc_exe = 'icc -O3 -g -fomit-frame-pointer -openmp -fPIC'</code>, not forgetting the
+<code>self.cc_exe = ...</code> lines in the two constructors.</p>
+
+<p>We can now build numpy with:</p>
+
+<figure class='code'><figcaption><span>compile numpy  </span></figcaption>
+ <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='bash'><span class='line'><span class="nv">$ </span>python setup.py config --compiler<span class="o">=</span>intel build_clib --compiler<span class="o">=</span>intelem build_ext --compiler<span class="o">=</span>intelem install
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Fire up python and check to see if it all works with (you&#8217;ll need to have
+installed <em>nose</em> to run the tests):</p>
+
+<figure class='code'><figcaption><span>Test python  </span></figcaption>
+ <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+</span><span class='line'><span class="n">np</span><span class="o">.</span><span class="n">test</span><span class="p">()</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>In my build <em>numpy</em> imported, but one of the tests seemed to hang. Other than
+that (!), everything else seemed to work correctly.</p>
+
+<p>I found that in the most recent versions of <em>scipy</em> it wasn&#8217;t necessary to make
+all the changes detailed in the post linked <a href="http://blog.sun.tc/2010/11/numpy-and-scipy-with-intel-mkl-on-linux.html">above</a>, just copy the <em>numpy</em> <code>site.cfg</code> into the scipy
+directory. However, we also seem to need to patch one of the files
+<code>scipy/spatial/qhull/src/qhull_a.h</code></p>
+
+<figure class='code'><figcaption><span>patch for qhull_a.h  </span></figcaption>
+ <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+</pre></td><td class='code'><pre><code class='diff'><span class='line'><span class="gd">--- qhull_a.h   2011-02-27 18:57:02.000000000 -0500</span>
+</span><span class='line'><span class="gi">+++ /home/jrs65/qhull_a.h       2011-10-12 20:42:36.898520000 -0400</span>
+</span><span class='line'><span class="gu">@@ -103,9 +103,10 @@</span>
+</span><span class='line'> #   define QHULL_OS_WIN
+</span><span class='line'> #endif
+</span><span class='line'> #if defined(__INTEL_COMPILER) &amp;amp;&amp;amp; !defined(QHULL_OS_WIN)
+</span><span class='line'><span class="gd">-template </span>
+</span><span class='line'><span class="gd">-inline void qhullUnused(T &amp;amp;x) { (void)x; }</span>
+</span><span class='line'><span class="gd">-#  define QHULL_UNUSED(x) qhullUnused(x);</span>
+</span><span class='line'><span class="gi">+// template </span>
+</span><span class='line'><span class="gi">+//void qhullUnused((int *) x) { (void)x; }</span>
+</span><span class='line'><span class="gi">+// #  define QHULL_UNUSED(x) qhullUnused(x);</span>
+</span><span class='line'><span class="gi">+#  define QHULL_UNUSED(x) (void)x;</span>
+</span><span class='line'> #else
+</span><span class='line'> #  define QHULL_UNUSED(x) (void)x;
+</span><span class='line'> #endif
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Then the only step left is to build <em>scipy</em>. Do that by running:</p>
+
+<figure class='code'><figcaption><span>Building scipy  </span></figcaption>
+ <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='bash'><span class='line'><span class="nv">$ </span>python setup.py config --compiler<span class="o">=</span>intelem --fcompiler<span class="o">=</span>intelem build_clib --compiler<span class="o">=</span>intelem --fcompiler<span class="o">=</span>intelem build_ext --compiler<span class="o">=</span>intelem --fcompiler<span class="o">=</span>intelem install
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Voila. In theory you should have a working Python/Numpy/Scipy toolchain. On with science!</p>
+</div>
+  
+  
+
+
+    </article>
+  
   <nav class="pagination">
     <div>
       
@@ -75,6 +299,10 @@
   <h1>Recent Posts</h1>
   <ul id="recent_posts">
     
+      <li class="post">
+        <a href="/blog/2011/10/14/compiling-python-with-the-intel-compilers/">Compiling Python With the Intel Compilers</a>
+      </li>
+    
   </ul>
 </section>
 
@@ -87,7 +315,7 @@
     </div>
   </div>
   <footer role="contentinfo"><p>
-  Copyright &copy; 2011 - Your Name -
+  Copyright &copy; 2011 - Richard Shaw -
   <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
 </p>
 
@@ -126,6 +354,18 @@
   </script>
 
 
+
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-12280727-3']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
 
 
 
