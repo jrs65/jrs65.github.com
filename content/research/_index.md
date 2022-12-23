@@ -23,7 +23,9 @@ projects trying to do this:
 
 
 [CHIME](https://chime-experiment.ca/) is a novel radio interferometer built at the
-[Dominion Radio Astrophysical Observatory](https://nrc.canada.ca/en/research-development/nrc-facilities/dominion-radio-astrophysical-observatory-research-facility) near Penticton in British
+[Dominion Radio Astrophysical
+Observatory](https://nrc.canada.ca/en/research-development/nrc-facilities/dominion-radio-astrophysical-observatory-research-facility)
+near Penticton in British
 Columbia. CHIME is designed for mapping the distribution of neutral hydrogen between
 redshifts 0.8 and 2.5, and constraining the equation of state of dark energy at a key
 epoch. For an overview of CHIME see {{ arxiv(id="2201.07869") }}
